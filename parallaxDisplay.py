@@ -6,9 +6,12 @@ import glob
 
 
 # To Do:
+# Take user input with baseline around calibration time
+
 # In calibrateCamera
-#   do a loop where we access the camera 
-#   and take the calibration images, then save
+#   do a loop where we access the cameras
+#   and take the calibration images from both
+#   perspectives simulatneously, then save
 #   to folder
 
 # To Do:
@@ -33,7 +36,18 @@ import glob
 # https://medium.com/@stepanfilonov/tracking-your-eyes-with-python-3952e66194a6
 # https://www.geeksforgeeks.org/camera-calibration-with-python-opencv/
 
-def calibrateCamera(cb_w = 6, cb_h = 9):
+def calibrateMultiCameras(cap1, cap2, cb_w = 6, cb_h = 9, base_path="CalibrationImages/"):
+    path1 = base_path + "LeftCamera/"
+    path2 = base_path + "RightCamera/"
+
+
+    cam1_settings = calibrateCamera(cb_w, cb_h, path1)
+    cam2_settings = calibrateCamera(cb_w, cb_h, path2)
+
+
+
+
+def calibrateCamera(cb_w=6, cb_h=9, path="CalibrationImages/"):
     chessboard_width = cb_w
     chessboard_height = cb_h
 
@@ -50,7 +64,7 @@ def calibrateCamera(cb_w = 6, cb_h = 9):
                                         0:chessboard_height].T.reshape(-1, 2)
     prev_image_shape = None
 
-    images = glob.glob('CalibrationImages/*.jpg')
+    images = glob.glob(path + '*.jpg')
     print(images)
 
     for filename in images:
@@ -82,7 +96,7 @@ def calibrateCamera(cb_w = 6, cb_h = 9):
 
     h, w = image.shape[:2]
 
-    ret, matrix, distortion, r_vecs, t_vecs = cv.calibrateCamera(points3D, points2D, grayColor.shape[::-1], None, None)
+    [ret, matrix, distortion, r_vecs, t_vecs]  = cv.calibrateCamera(points3D, points2D, grayColor.shape[::-1], None, None)
     print(" Camera matrix:")
     print(matrix)
     
@@ -94,6 +108,8 @@ def calibrateCamera(cb_w = 6, cb_h = 9):
     
     print("\n Translation Vectors:")
     print(t_vecs)
+
+    return [ret, matrix, distortion, r_vecs, t_vecs]
  
  
 
