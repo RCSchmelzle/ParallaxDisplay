@@ -8,11 +8,6 @@ import glob
 # To Do:
 # Take user input with baseline around calibration time
 
-# In calibrateCamera
-#   do a loop where we access the cameras
-#   and take the calibration images from both
-#   perspectives simulatneously, then save
-#   to folder
 
 # To Do:
 # In detectPupil
@@ -20,8 +15,6 @@ import glob
 
 # To Do:
 # Overall
-#   Duplicate calibration for second camera
-#   Set up second camera
 #   Duplicate pupil detection for second camera
 #   Find disparity between camera pupil locations
 #   Use focal length from calibration, baseline, disparity
@@ -35,13 +28,26 @@ import glob
 
 # https://medium.com/@stepanfilonov/tracking-your-eyes-with-python-3952e66194a6
 # https://www.geeksforgeeks.org/camera-calibration-with-python-opencv/
+# https://temugeb.github.io/opencv/python/2021/02/02/stereo-camera-calibration-and-triangulation.html
 
-def calibrateMultiCameras(cap1, cap2, cb_w = 6, cb_h = 9, base_path="CalibrationImages/", take_photos=True):
+def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationImages/", take_photos=True):
+    chessboard_width = cb_w
+    chessboard_height = cb_h
+    world_scaling = w_s
+
+    
     path1 = base_path + "CameraOne/"
     path2 = base_path + "CameraTwo/"
 
 
     if take_photos:
+
+        cap1 = cv.VideoCapture(1, cv.CAP_DSHOW)
+        cap2 = cv.VideoCapture(2, cv.CAP_DSHOW)
+
+        assert cap1.isOpened()
+        assert cap2.isOpened()
+
         print("Press spacebar to take calibration photo; press q to end")
 
         photos_taken = 0
@@ -72,15 +78,85 @@ def calibrateMultiCameras(cap1, cap2, cb_w = 6, cb_h = 9, base_path="Calibration
     cv.destroyAllWindows()
 
 
-    cam1_settings = calibrateCamera(cb_w, cb_h, path1)
-    cam2_settings = calibrateCamera(cb_w, cb_h, path2)
+    [ret1, matrix1, distortion1, r_vecs1, t_vecs1] = calibrateCamera(cb_w, cb_h, w_s, path1)
+    [ret2, matrix2, distortion2, r_vecs2, t_vecs2] = calibrateCamera(cb_w, cb_h, w_s, path2)
+
+
+    image_names_1 = glob.glob(path1 + '*.jpg')
+    image_names_2 = glob.glob(path2 + '*.jpg')
+
+    images_1 = []
+    images_2 = []
+
+    for im1, im2 in zip(image_names_1, image_names_2):
+        _im = cv.imread(im1, 1)
+        images_1.append(_im)
+
+        _im = cv.imread(im2, 1)
+        images_2.append(_im)
+
+        _im = np.concatenate((images_1[-1], images_2[-1]),1)
+        cv.imshow('pair', _im)
+        cv.waitKey(0)
+    cv.destroyAllWindows()
+
+    criteria = (cv.TERM_CRITERIA_EPS + 
+                cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+    object3Dpoints = np.zeros((1, chessboard_width * chessboard_height, 3),
+                                np.float32)
+    object3Dpoints[0, :, :2] = np.mgrid[0:chessboard_width,
+                                        0:chessboard_height].T.reshape(-1, 2)
+    object3Dpoints = world_scaling * object3Dpoints
+
+    width = images_1[0].shape[1]
+    height = images_1[0].shape[0]
+
+    points3D = []
+
+    points2D_1 = []
+    points2D_2 = []
+
+    for frame1, frame2 in zip(images_1, images_2):
+        gray1 = cv.cvtColor(frame1, cv.COLOR_BGR2GRAY)
+        gray2 = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
+        c_ret1, corners1 = cv.findChessboardCorners(gray1, (chessboard_width, chessboard_height), None)
+        c_ret2, corners2 = cv.findChessboardCorners(gray2, (chessboard_width, chessboard_height), None)
+
+        if c_ret1 and c_ret2:
+            corners1 = cv.cornerSubPix(gray1, corners1, (11, 11), (-1, -1), criteria)
+            corners2 = cv.cornerSubPix(gray2, corners2, (11, 11), (-1, -1), criteria)
+
+            cv.drawChessboardCorners(frame1, (chessboard_width, chessboard_height), corners1, c_ret1)
+            cv.drawChessboardCorners(frame2, (chessboard_width, chessboard_height), corners2, c_ret2)
+
+            _im = np.concatenate((frame1, frame2), 1)
+            
+            cv.imshow('Pair', _im)
+            cv.waitKey(0)
+            cv.destroyAllWindows()
+
+            points3D.append(object3Dpoints)
+            points2D_1.append(corners1)
+            points2D_2.append(corners2)
+
+
+    stereocalibration_flags = cv.CALIB_FIX_INTRINSIC
+    ret, CM1, dist1, CM2, dist2, R, T, E, F = cv.stereoCalibrate(points3D, points2D_1, points2D_2, 
+                                                                matrix1, distortion1, matrix2, distortion2, 
+                                                                (width, height), criteria = criteria, 
+                                                                flags = stereocalibration_flags)
+
+    print([ret, CM1, dist1, CM2, dist2, R, T, E, F])
+    return [ret, CM1, dist1, CM2, dist2, R, T, E, F]
 
 
 
 
-def calibrateCamera(cb_w=6, cb_h=9, path="CalibrationImages/"):
+def calibrateCamera(cb_w=6, cb_h=9, w_s=1, path="CalibrationImages/"):
     chessboard_width = cb_w
     chessboard_height = cb_h
+    world_scaling = w_s
 
     criteria = (cv.TERM_CRITERIA_EPS + 
                 cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -93,13 +169,13 @@ def calibrateCamera(cb_w=6, cb_h=9, path="CalibrationImages/"):
                                 np.float32)
     object3Dpoints[0, :, :2] = np.mgrid[0:chessboard_width,
                                         0:chessboard_height].T.reshape(-1, 2)
+    object3Dpoints = world_scaling * object3Dpoints
 
     images = glob.glob(path + '*.jpg')
 
 
-    multi_images = None
 
-    for i, filename in enumerate(images):
+    for filename in images:
         image = cv.imread(filename)
         grayColor = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
 
@@ -131,17 +207,6 @@ def calibrateCamera(cb_w=6, cb_h=9, path="CalibrationImages/"):
     h, w = image.shape[:2]
 
     [ret, matrix, distortion, r_vecs, t_vecs]  = cv.calibrateCamera(points3D, points2D, grayColor.shape[::-1], None, None)
-    print(" Camera matrix:")
-    print(matrix)
-    
-    print("\n Distortion coefficient:")
-    print(distortion)
-    
-    print("\n Rotation Vectors:")
-    print(r_vecs)
-    
-    print("\n Translation Vectors:")
-    print(t_vecs)
 
     return [ret, matrix, distortion, r_vecs, t_vecs]
  
@@ -214,19 +279,8 @@ def detectPupils(eye_image, blob_detector, blob_threshold):
 
 
 def main():
-
-
-    #calibrateCamera()
-
-    cap1 = cv.VideoCapture(1, cv.CAP_DSHOW)
-    cap2 = cv.VideoCapture(2, cv.CAP_DSHOW)
-
-    assert cap1.isOpened()
-    assert cap2.isOpened()
-
-    calibrateMultiCameras(cap1, cap2, take_photos=False)
-
-    
+    stero_settings = calibrateMultiCameras(take_photos=False)
+    [ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
 
 
     face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
