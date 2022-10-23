@@ -36,9 +36,40 @@ import glob
 # https://medium.com/@stepanfilonov/tracking-your-eyes-with-python-3952e66194a6
 # https://www.geeksforgeeks.org/camera-calibration-with-python-opencv/
 
-def calibrateMultiCameras(cap1, cap2, cb_w = 6, cb_h = 9, base_path="CalibrationImages/"):
-    path1 = base_path + "LeftCamera/"
-    path2 = base_path + "RightCamera/"
+def calibrateMultiCameras(cap1, cap2, cb_w = 6, cb_h = 9, base_path="CalibrationImages/", take_photos=True):
+    path1 = base_path + "CameraOne/"
+    path2 = base_path + "CameraTwo/"
+
+
+    if take_photos:
+        print("Press spacebar to take calibration photo; press q to end")
+
+        photos_taken = 0
+
+
+        while True:
+            _, c1 = cap1.read()
+            c1 = cv.cvtColor(c1, cv.COLOR_BGR2GRAY)
+
+            _, c2 = cap2.read()
+            c2 = cv.cvtColor(c2, cv.COLOR_BGR2GRAY)
+
+
+            cameras = np.concatenate((c1, c2), 1)
+
+            cv.imshow('frame', cameras)
+
+            if cv.waitKey(1) == ord(' '):
+                cv.imwrite(path1+"Cal_Pic_"+str(photos_taken)+".jpg", c1)
+                cv.imwrite(path2+"Cal_Pic_"+str(photos_taken)+".jpg", c2)
+                photos_taken+=1
+                if photos_taken == 3:
+                    break
+
+
+
+
+    cv.destroyAllWindows()
 
 
     cam1_settings = calibrateCamera(cb_w, cb_h, path1)
@@ -62,16 +93,15 @@ def calibrateCamera(cb_w=6, cb_h=9, path="CalibrationImages/"):
                                 np.float32)
     object3Dpoints[0, :, :2] = np.mgrid[0:chessboard_width,
                                         0:chessboard_height].T.reshape(-1, 2)
-    prev_image_shape = None
 
     images = glob.glob(path + '*.jpg')
-    print(images)
 
-    for filename in images:
+
+    multi_images = None
+
+    for i, filename in enumerate(images):
         image = cv.imread(filename)
         grayColor = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-        cv.imshow('im', grayColor)
-        cv.waitKey(0)
 
         ret, corners = cv.findChessboardCorners(grayColor, 
                                                 (chessboard_width, chessboard_height),
@@ -89,8 +119,12 @@ def calibrateCamera(cb_w=6, cb_h=9, path="CalibrationImages/"):
             image = cv.drawChessboardCorners(image, (chessboard_width, chessboard_height),
                                              corners2, ret)
 
-        cv.imshow('Image', image)
+
+        cv.imshow("frame", image)
         cv.waitKey(0)
+
+        
+
 
     cv.destroyAllWindows()
 
@@ -180,7 +214,21 @@ def detectPupils(eye_image, blob_detector, blob_threshold):
 
 
 def main():
-    calibrateCamera()
+
+
+    #calibrateCamera()
+
+    cap1 = cv.VideoCapture(1, cv.CAP_DSHOW)
+    cap2 = cv.VideoCapture(2, cv.CAP_DSHOW)
+
+    assert cap1.isOpened()
+    assert cap2.isOpened()
+
+    calibrateMultiCameras(cap1, cap2, take_photos=False)
+
+    
+
+
     face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
     eye_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_eye_tree_eyeglasses.xml')
 
