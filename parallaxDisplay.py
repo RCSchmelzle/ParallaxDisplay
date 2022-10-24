@@ -30,21 +30,23 @@ import glob
 # https://www.geeksforgeeks.org/camera-calibration-with-python-opencv/
 # https://temugeb.github.io/opencv/python/2021/02/02/stereo-camera-calibration-and-triangulation.html
 
-def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationImages/", take_photos=True):
+def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationImages/", take_photos=True, show_images=False):
     chessboard_width = cb_w
     chessboard_height = cb_h
     world_scaling = w_s
 
     
-    path1 = base_path + "CameraOne/"
-    path2 = base_path + "CameraTwo/"
+    
 
 
     if take_photos:
-
+        path1 = base_path + "CameraOne/"
+        path2 = base_path + "CameraTwo/"
+        
         cap1 = cv.VideoCapture(1, cv.CAP_DSHOW)
         cap2 = cv.VideoCapture(2, cv.CAP_DSHOW)
 
+        
         assert cap1.isOpened()
         assert cap2.isOpened()
 
@@ -72,14 +74,18 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
                 if photos_taken == 3:
                     break
 
+    else:
+        path1 = base_path + "Defaults/CameraOne/"
+        path2 = base_path + "Defaults/CameraTwo/"
+
 
 
 
     cv.destroyAllWindows()
 
 
-    [ret1, matrix1, distortion1, r_vecs1, t_vecs1] = calibrateCamera(cb_w, cb_h, w_s, path1)
-    [ret2, matrix2, distortion2, r_vecs2, t_vecs2] = calibrateCamera(cb_w, cb_h, w_s, path2)
+    [ret1, matrix1, distortion1, r_vecs1, t_vecs1] = calibrateCamera(cb_w, cb_h, w_s, path1, show_images=show_images)
+    [ret2, matrix2, distortion2, r_vecs2, t_vecs2] = calibrateCamera(cb_w, cb_h, w_s, path2, show_images=show_images)
 
 
     image_names_1 = glob.glob(path1 + '*.jpg')
@@ -94,10 +100,7 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
 
         _im = cv.imread(im2, 1)
         images_2.append(_im)
-
-        _im = np.concatenate((images_1[-1], images_2[-1]),1)
-        cv.imshow('pair', _im)
-        cv.waitKey(0)
+        
     cv.destroyAllWindows()
 
     criteria = (cv.TERM_CRITERIA_EPS + 
@@ -130,11 +133,12 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
             cv.drawChessboardCorners(frame1, (chessboard_width, chessboard_height), corners1, c_ret1)
             cv.drawChessboardCorners(frame2, (chessboard_width, chessboard_height), corners2, c_ret2)
 
-            _im = np.concatenate((frame1, frame2), 1)
+            if show_images:
+                _im = np.concatenate((frame1, frame2), 1)
             
-            cv.imshow('Pair', _im)
-            cv.waitKey(0)
-            cv.destroyAllWindows()
+                cv.imshow('Pair', _im)
+                cv.waitKey(0)
+                cv.destroyAllWindows()
 
             points3D.append(object3Dpoints)
             points2D_1.append(corners1)
@@ -153,7 +157,7 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
 
 
 
-def calibrateCamera(cb_w=6, cb_h=9, w_s=1, path="CalibrationImages/"):
+def calibrateCamera(cb_w=6, cb_h=9, w_s=1, path="CalibrationImages/", show_images=False):
     chessboard_width = cb_w
     chessboard_height = cb_h
     world_scaling = w_s
@@ -196,13 +200,11 @@ def calibrateCamera(cb_w=6, cb_h=9, w_s=1, path="CalibrationImages/"):
                                              corners2, ret)
 
 
-        cv.imshow("frame", image)
-        cv.waitKey(0)
+        if show_images:
 
-        
-
-
-    cv.destroyAllWindows()
+            cv.imshow("frame", image)
+            cv.waitKey(0)
+            cv.destroyAllWindows()
 
     h, w = image.shape[:2]
 
@@ -220,6 +222,8 @@ def defineBlobDetector():
     detector_params = cv.SimpleBlobDetector_Params()
     detector_params.filterByArea = True
     detector_params.maxArea = 1500
+    detector_params.filterByInertia = False
+    detector_params.filterByConvexity = False
     detector = cv.SimpleBlobDetector_create(detector_params)
 
     return detector
@@ -262,25 +266,28 @@ def detectEyes(color_face, gray_face, eye_cascade):
 
     return left_eye, right_eye, [list(eyes[0]), list(eyes[-1])]
 
-def detectPupils(eye_image, blob_detector, blob_threshold):
+def detectPupils(eye_image, detector, blob_threshold):
+    print(detector)
     mod_eye = cv.cvtColor(eye_image, cv.COLOR_BGR2GRAY)
     _, mod_eye = cv.threshold(mod_eye, blob_threshold, 255, cv.THRESH_BINARY)
-    mod_eye = eye_image[int(len(mod_eye)*0.25):, :]
+    mod_eye = mod_eye[int(len(mod_eye)*0.25):, :]
     mod_eye = cv.erode(mod_eye, None, iterations=2)
     mod_eye = cv.dilate(mod_eye, None, iterations=4)
     mod_eye = cv.medianBlur(mod_eye, 5)
 
-    keypoints = blob_detector.detect(mod_eye)
-    print(keypoints)
-    # Figure out why blob detection isn't working
-    cv.drawKeypoints(eye_image, keypoints, eye_image, (0,0,255), cv.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    return eye_image
+
+    keypoints = detector.detect(mod_eye)
+    
+    pt = keypoints[0].pt
+    pt = (int(pt[0]), int(pt[1] + len(mod_eye)*0.25))
+
+    return pt
 
 
 
 def main():
-    stero_settings = calibrateMultiCameras(take_photos=False)
-    [ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
+    #stero_settings = calibrateMultiCameras(take_photos=False, show_images=False)
+    #[ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
 
 
     face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
@@ -290,6 +297,7 @@ def main():
     assert not eye_cascade.empty()
 
     blob_detector = defineBlobDetector()
+    print(blob_detector)
     blob_threshold = 42
 
     
@@ -308,16 +316,20 @@ def main():
     for (ex, ey, ew, eh) in eye_coordinates:
         running_pupil_coordinates.append([ex+face_coordinates[0], ey+face_coordinates[1]])
 
+    pupil_coordinates = [detectPupils(left_eye, blob_detector, blob_threshold), detectPupils(right_eye, blob_detector, blob_threshold)]
+    
+    for i, (px, py) in enumerate(pupil_coordinates):
+        running_pupil_coordinates[i][0] += px
+        running_pupil_coordinates[i][1] += py + 5
 
-    print(running_pupil_coordinates)
+
+
+    print(pupil_coordinates)
+
     for coor in running_pupil_coordinates:
-        cv.rectangle(color_image, (coor[0], coor[1]), (coor[0]+10, coor[1]+10), (0,255,0), 2)
+        cv.circle(color_image, (coor[0], coor[1]), 2, (0,255,0), 2)
 
 
-
-    left_pupil = detectPupils(left_eye, blob_detector, blob_threshold)
-    right_pupil = detectPupils(right_eye, blob_detector, blob_threshold)
-        
 
     #cv.imshow('frame', cv.hconcat([left_pupil, right_pupil]))
     cv.imshow('frame', color_image)
