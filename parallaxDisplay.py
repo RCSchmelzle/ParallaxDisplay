@@ -138,7 +138,7 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
                 _im = np.concatenate((frame1, frame2), 1)
             
                 cv.imshow('Pair', _im)
-                #cv.waitKey(0)
+                cv.waitKey(0)
                 cv.destroyAllWindows()
 
             points3D.append(object3Dpoints)
@@ -343,8 +343,8 @@ def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blo
 
 
 def main():
-    #stero_settings = calibrateMultiCameras(take_photos=False, show_images=False)
-    #[ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
+    stero_settings = calibrateMultiCameras(take_photos=False, show_images=True)
+    [ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
 
 
     face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
