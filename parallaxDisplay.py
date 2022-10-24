@@ -138,7 +138,7 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
                 _im = np.concatenate((frame1, frame2), 1)
             
                 cv.imshow('Pair', _im)
-                cv.waitKey(0)
+                #cv.waitKey(0)
                 cv.destroyAllWindows()
 
             points3D.append(object3Dpoints)
@@ -152,7 +152,7 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
                                                                 (width, height), criteria = criteria, 
                                                                 flags = stereocalibration_flags)
 
-    print([ret, CM1, dist1, CM2, dist2, R, T, E, F])
+    #print([ret, CM1, dist1, CM2, dist2, R, T, E, F])
     return [ret, CM1, dist1, CM2, dist2, R, T, E, F]
 
 
@@ -232,12 +232,14 @@ def defineBlobDetector():
 def updateFrame(cap):
     ret, color = cap.read()
     assert ret
-    gray = cv.cvtColor(color, cv.COLOR_BGR2GRAY)
+    #gray = cv.cvtColor(color, cv.COLOR_BGR2GRAY)
 
-    return [color, gray]
+    return color
 
 def detectFaces(color_image, gray_image, face_cascade):
     faces = face_cascade.detectMultiScale(gray_image, 1.3, 5)
+    color_face = None
+    gray_face = None
 
     if len(faces) > 1:
         faces = sorted(faces, key = lambda f: f[2]*f[3])
@@ -247,7 +249,13 @@ def detectFaces(color_image, gray_image, face_cascade):
         color_face = color_image[y:y+h, x:x+w]
         gray_face = gray_image[y:y+h, x:x+w]
 
-    return color_face, gray_face, faces[0]
+    if len(faces) >= 1:
+        faces = faces[0]
+    else:
+        faces = []
+
+    return color_face, gray_face, faces
+
 
 def detectEyes(color_face, gray_face, eye_cascade):
     eyes = eye_cascade.detectMultiScale(gray_face)
@@ -265,10 +273,13 @@ def detectEyes(color_face, gray_face, eye_cascade):
         else:
             right_eye = color_face[ey:ey+eh, ex:ex+ew]
 
+    if left_eye is None or right_eye is None or len(eyes) == 0:
+        return None, None, None
+
     return left_eye, right_eye, [list(eyes[0]), list(eyes[-1])]
 
 def detectPupils(eye_image, detector, blob_threshold):
-    print(detector)
+    #print(detector)
     mod_eye = cv.cvtColor(eye_image, cv.COLOR_BGR2GRAY)
     _, mod_eye = cv.threshold(mod_eye, blob_threshold, 255, cv.THRESH_BINARY)
     mod_eye = mod_eye[int(len(mod_eye)*0.25):, :]
@@ -276,40 +287,60 @@ def detectPupils(eye_image, detector, blob_threshold):
     mod_eye = cv.dilate(mod_eye, None, iterations=4)
     mod_eye = cv.medianBlur(mod_eye, 5)
 
+    #cv.imshow('frame', mod_eye)
+    #cv.waitKey(0)
 
     keypoints = detector.detect(mod_eye)
-    
-    pt = keypoints[0].pt
-    pt = (int(pt[0]), int(pt[1] + len(mod_eye)*0.25))
 
-    return pt
+
+
+    try: 
+        pt = keypoints[0].pt
+        pt = (int(pt[0]), int(pt[1] + len(mod_eye)*0.25))
+        return pt
+    except:
+        return [int(len(mod_eye[0])/2), int(len(mod_eye)/2)]
 
 def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blob_detector, blob_threshold=42): 
     gray_image = cv.cvtColor(color_image, cv.COLOR_BGR2GRAY)    
+    
 
     [color_face, gray_face, face_coordinates] = detectFaces(color_image, gray_image, face_cascade)
-    [left_eye, right_eye, eye_coordinates] = detectEyes(color_face, gray_face, eye_cascade)
+    if color_face is None or gray_face is None or len(face_coordinates) == 0:
+        return
 
-    print(face_coordinates)
-    print(eye_coordinates)
+    [left_eye, right_eye, eye_coordinates] = detectEyes(color_face, gray_face, eye_cascade)
+    if left_eye is None or right_eye is None or eye_coordinates is None:
+        return
+
+    #print(face_coordinates)
+    #print(eye_coordinates)
 
     running_pupil_coordinates = []
 
     for (ex, ey, ew, eh) in eye_coordinates:
         running_pupil_coordinates.append([ex+face_coordinates[0], ey+face_coordinates[1]])
 
+
     pupil_coordinates = [detectPupils(left_eye, blob_detector, blob_threshold), detectPupils(right_eye, blob_detector, blob_threshold)]
-    
+
+
+    if pupil_coordinates[0] == None or pupil_coordinates[1] == None or pupil_coordinates is None:
+        return
+
+
+
     for i, (px, py) in enumerate(pupil_coordinates):
         running_pupil_coordinates[i][0] += px
         running_pupil_coordinates[i][1] += py + 5
 
 
+    print(running_pupil_coordinates)
 
-    print(pupil_coordinates)
 
     for coor in running_pupil_coordinates:
-        cv.circle(color_image, (coor[0], coor[1]), 2, (0,255,0), 2)
+        cv.circle(color_image, (coor[0], coor[1]), 2, (255,255,0), 2)
+
 
 def main():
     #stero_settings = calibrateMultiCameras(take_photos=False, show_images=False)
@@ -324,19 +355,27 @@ def main():
 
     blob_detector = defineBlobDetector()
     print(blob_detector)
-    blob_threshold = 42
+    blob_threshold = 84
+
+    cap1 = cv.VideoCapture(0)
+
+
+    while True:
+        frame1 = updateFrame(cap1)
+        #cv.waitKey(0)
+        detect_pupil_location_from_image(frame1, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold)
+        cv.imshow('frame1', frame1)
+
+        if cv.waitKey(1) == ord('q'):
+            break
+
+    cap1.release()
+    cv.destroyAllWindows()
+
+
 
 
     
-    color_image = cv.imread("C:/Users/rcsch/OneDrive/Desktop/faceTest.jpeg")
-    detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold)
-
-
-
-    #cv.imshow('frame', cv.hconcat([left_pupil, right_pupil]))
-    cv.imshow('frame', color_image)
-    cv.waitKey(0)
-    cv.destroyAllWindows()
 
 
     """
