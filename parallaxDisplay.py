@@ -30,6 +30,7 @@ import glob
 # https://www.geeksforgeeks.org/camera-calibration-with-python-opencv/
 # https://temugeb.github.io/opencv/python/2021/02/02/stereo-camera-calibration-and-triangulation.html
 
+
 def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationImages/", take_photos=True, show_images=False):
     chessboard_width = cb_w
     chessboard_height = cb_h
@@ -283,27 +284,8 @@ def detectPupils(eye_image, detector, blob_threshold):
 
     return pt
 
-
-
-def main():
-    #stero_settings = calibrateMultiCameras(take_photos=False, show_images=False)
-    #[ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
-
-
-    face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
-    eye_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_eye_tree_eyeglasses.xml')
-
-    assert not face_cascade.empty()
-    assert not eye_cascade.empty()
-
-    blob_detector = defineBlobDetector()
-    print(blob_detector)
-    blob_threshold = 42
-
-    
-    color_image = cv.imread("C:/Users/rcsch/OneDrive/Desktop/faceTest.jpeg")
+def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blob_detector, blob_threshold=42): 
     gray_image = cv.cvtColor(color_image, cv.COLOR_BGR2GRAY)    
-
 
     [color_face, gray_face, face_coordinates] = detectFaces(color_image, gray_image, face_cascade)
     [left_eye, right_eye, eye_coordinates] = detectEyes(color_face, gray_face, eye_cascade)
@@ -328,6 +310,26 @@ def main():
 
     for coor in running_pupil_coordinates:
         cv.circle(color_image, (coor[0], coor[1]), 2, (0,255,0), 2)
+
+def main():
+    #stero_settings = calibrateMultiCameras(take_photos=False, show_images=False)
+    #[ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
+
+
+    face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
+    eye_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_eye_tree_eyeglasses.xml')
+
+    assert not face_cascade.empty()
+    assert not eye_cascade.empty()
+
+    blob_detector = defineBlobDetector()
+    print(blob_detector)
+    blob_threshold = 42
+
+
+    
+    color_image = cv.imread("C:/Users/rcsch/OneDrive/Desktop/faceTest.jpeg")
+    detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold)
 
 
 
