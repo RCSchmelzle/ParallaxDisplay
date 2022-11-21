@@ -23,7 +23,7 @@ import glob
 # DOI 10.5281/zenodo.50641
 
 
-def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationImages/", take_photos=True, show_images=False):
+def calibrateMultiCameras(cb_w = 7, cb_h = 6, w_s = 3.994, base_path="CalibrationImages/", take_photos=True, show_images=False):
     chessboard_width = cb_w
     chessboard_height = cb_h
     world_scaling = w_s
@@ -58,7 +58,7 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
 
             cameras = np.concatenate((c1, c2), 1)
 
-            cv.imshow('frame', cameras)
+            #cv.imshow('frame', cameras)
 
             if cv.waitKey(1) == ord(' '):
                 cv.imwrite(path1+"Cal_Pic_"+str(photos_taken)+".jpg", c1)
@@ -118,7 +118,9 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
 
     for frame1, frame2 in zip(images_1, images_2):
         gray1 = cv.cvtColor(frame1, cv.COLOR_BGR2GRAY)
+        gray1 = cv.undistort(gray1, matrix1, distortion1)
         gray2 = cv.cvtColor(frame2, cv.COLOR_BGR2GRAY)
+        gray2 = cv.undistort(gray2, matrix2, distortion2)
         c_ret1, corners1 = cv.findChessboardCorners(gray1, (chessboard_width, chessboard_height), None)
         c_ret2, corners2 = cv.findChessboardCorners(gray2, (chessboard_width, chessboard_height), None)
 
@@ -142,6 +144,10 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
 
 
     stereocalibration_flags = cv.CALIB_FIX_INTRINSIC
+
+    # points2D_1 = cv.undistortPoints(points2D_1, matrix1, distortion1)
+    # points2D_2 = cv.undistortPoints(points2D_2, matrix2, distortion2)
+
     ret, CM1, dist1, CM2, dist2, R, T, E, F = cv.stereoCalibrate(points3D, points2D_1, points2D_2, 
                                                                 matrix1, distortion1, matrix2, distortion2, 
                                                                 (width, height), criteria = criteria, 
@@ -150,7 +156,9 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
     print(CM1)
     print(CM2)
 
-
+    print(R)
+    print(T)
+      
     #print([ret, CM1, dist1, CM2, dist2, R, T, E, F])
     return [ret, CM1, dist1, CM2, dist2, R, T, E, F]
 
@@ -165,7 +173,7 @@ def calibrateCamera(cb_w=6, cb_h=9, w_s=1, path="CalibrationImages/", show_image
     criteria = (cv.TERM_CRITERIA_EPS + 
                 cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-    points3D = []
+    points3D = [] 
 
     points2D = []
 
@@ -202,11 +210,13 @@ def calibrateCamera(cb_w=6, cb_h=9, w_s=1, path="CalibrationImages/", show_image
 
         if show_images:
 
-            cv.imshow("frame", image)
-            cv.waitKey(0)
+            #cv.imshow("frame", image)
+            #cv.waitKey(0)
             cv.destroyAllWindows()
 
     h, w = image.shape[:2]
+
+    
 
     [ret, matrix, distortion, r_vecs, t_vecs]  = cv.calibrateCamera(points3D, points2D, grayColor.shape[::-1], None, None)
 
@@ -427,8 +437,8 @@ def main():
 
             _im = np.concatenate((_im_1, _im_2), 1)
             
-            cv.imshow('Pair', _im)
-            cv.waitKey(0)
+            #cv.imshow('Pair', _im)
+            #cv.waitKey(0)
 
             
 

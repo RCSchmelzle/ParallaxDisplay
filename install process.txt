@@ -1,0 +1,10 @@
+Install for Windows
+install vcpkg:
+https://github.com/microsoft/vcpkg#quick-start-windows
+
+install libfreenect2 via vcpkg (DOI 10.5281/zenodo.50641)
+https://github.com/OpenKinect/libfreenect2/blob/master/README.md#description
+
+
+OR
+Install WSL
