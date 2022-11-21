@@ -5,18 +5,9 @@ import os
 import glob
 
 
-# To Do:
-# Take user input with baseline around calibration time
-
-
-# To Do:
-# In detectPupil
-#   pinpoint why blob detection isn't working
 
 # To Do:
 # Overall
-#   Duplicate pupil detection for second camera
-#   Find disparity between camera pupil locations
 #   Use focal length from calibration, baseline, disparity
 #     to figure out depth
 #   Render with camera at each pupil location
@@ -29,6 +20,7 @@ import glob
 # https://medium.com/@stepanfilonov/tracking-your-eyes-with-python-3952e66194a6
 # https://www.geeksforgeeks.org/camera-calibration-with-python-opencv/
 # https://temugeb.github.io/opencv/python/2021/02/02/stereo-camera-calibration-and-triangulation.html
+# DOI 10.5281/zenodo.50641
 
 
 def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationImages/", take_photos=True, show_images=False):
@@ -87,6 +79,9 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
 
     [ret1, matrix1, distortion1, r_vecs1, t_vecs1] = calibrateCamera(cb_w, cb_h, w_s, path1, show_images=show_images)
     [ret2, matrix2, distortion2, r_vecs2, t_vecs2] = calibrateCamera(cb_w, cb_h, w_s, path2, show_images=show_images)
+
+    print(matrix1)
+    print(matrix2)
 
 
     image_names_1 = glob.glob(path1 + '*.jpg')
@@ -151,6 +146,10 @@ def calibrateMultiCameras(cb_w = 6, cb_h = 9, w_s = 1, base_path="CalibrationIma
                                                                 matrix1, distortion1, matrix2, distortion2, 
                                                                 (width, height), criteria = criteria, 
                                                                 flags = stereocalibration_flags)
+
+    print(CM1)
+    print(CM2)
+
 
     #print([ret, CM1, dist1, CM2, dist2, R, T, E, F])
     return [ret, CM1, dist1, CM2, dist2, R, T, E, F]
@@ -301,7 +300,7 @@ def detectPupils(eye_image, detector, blob_threshold):
     except:
         return [int(len(mod_eye[0])/2), int(len(mod_eye)/2)]
 
-def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blob_detector, blob_threshold=42): 
+def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blob_detector, blob_threshold=42, draw_pupils=False): 
     gray_image = cv.cvtColor(color_image, cv.COLOR_BGR2GRAY)    
     
 
@@ -320,7 +319,7 @@ def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blo
 
     for (ex, ey, ew, eh) in eye_coordinates:
         running_pupil_coordinates.append([ex+face_coordinates[0], ey+face_coordinates[1]])
-
+ 
 
     pupil_coordinates = [detectPupils(left_eye, blob_detector, blob_threshold), detectPupils(right_eye, blob_detector, blob_threshold)]
 
@@ -335,16 +334,53 @@ def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blo
         running_pupil_coordinates[i][1] += py + 5
 
 
-    print(running_pupil_coordinates)
+    # print(running_pupil_coordinates)
+
+    if draw_pupils:
+        for coor in running_pupil_coordinates:
+            cv.circle(color_image, (coor[0], coor[1]), 2, (255,255,0), 2)
+
+    return running_pupil_coordinates
 
 
-    for coor in running_pupil_coordinates:
-        cv.circle(color_image, (coor[0], coor[1]), 2, (255,255,0), 2)
+def compute_triangulation_calibrated(stereo_matrix, projected_points_1, projected_points_2):
+    RT1 = np.concatenate([np.eye(3), [[0],[0],[0]]], axis = -1)
+    
+    P1 = stereo_matrix[1]
+    P1 = P1 @ RT1 
+
+    P2 = stereo_matrix[3]
+    R = stereo_matrix[5]
+    T = stereo_matrix[6]
+
+    RT2 = np.concatenate([R, T], axis = -1)
+    P2 = P2 @ RT2 #projection matrix for C2
+
+    
+    triangulated_points = []
+
+    projected_points_1 = np.asarray(projected_points_1)
+    projected_points_2 = np.asarray(projected_points_2)
+
+    
+
+    # print(P1)
+    # print(P2)
+    # print(projected_points_1)
+
+    cv.waitKey(0)
+    for i in range(len(projected_points_1)):
+        X_l = cv.triangulatePoints(P1, P2, projected_points_1[i], projected_points_2[i])
+        triangulated_points.append(X_l)
+
+
+    return triangulated_points
 
 
 def main():
-    stero_settings = calibrateMultiCameras(take_photos=False, show_images=True)
-    [ret, CM1, dist1, CM2, dist2, R, T, E, F] = stero_settings
+    use_static_images = True
+    stereo_settings = calibrateMultiCameras(take_photos=False, show_images=False)
+    [ret, CM1, dist1, CM2, dist2, R, T, E, F] = stereo_settings
 
 
     face_cascade = cv.CascadeClassifier('C:\opencv\mingw-build\install\etc\haarcascades\haarcascade_frontalface_default.xml')
@@ -357,20 +393,61 @@ def main():
     print(blob_detector)
     blob_threshold = 84
 
-    cap1 = cv.VideoCapture(0)
+    if use_static_images:
+        base_path= "PupilTriangulationImages/"
+        path1 = base_path + "CameraOne/"
+        path2 = base_path + "CameraTwo/"
+        
+        image_names_1 = glob.glob(path1 + '*.jpg')
+        image_names_2 = glob.glob(path2 + '*.jpg')
+
+        print(path1)
+        print(image_names_1)
+        print(path2)
+        print(image_names_2)
 
 
-    while True:
-        frame1 = updateFrame(cap1)
-        #cv.waitKey(0)
-        detect_pupil_location_from_image(frame1, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold)
-        cv.imshow('frame1', frame1)
+        images_1 = []
+        images_2 = []
 
-        if cv.waitKey(1) == ord('q'):
-            break
+        for im1, im2 in zip(image_names_1, image_names_2):
+            _im_1 = cv.imread(im1, 1)
+            _im_2 = cv.imread(im2, 1)
 
-    cap1.release()
-    cv.destroyAllWindows()
+
+            im_1_pupils = detect_pupil_location_from_image(_im_1, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold, draw_pupils=True)
+            im_2_pupils = detect_pupil_location_from_image(_im_2, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold, draw_pupils=True)
+            
+
+            triangulated_pupil_coordinates = compute_triangulation_calibrated(stereo_settings, im_1_pupils, im_2_pupils)
+           
+            print(im_1_pupils)
+            print(im_2_pupils)
+            print(triangulated_pupil_coordinates)
+
+            _im = np.concatenate((_im_1, _im_2), 1)
+            
+            cv.imshow('Pair', _im)
+            cv.waitKey(0)
+
+            
+
+    else:
+
+        cap1 = cv.VideoCapture(0)
+
+
+        while True:
+            frame1 = updateFrame(cap1)
+            #cv.waitKey(0)
+            detect_pupil_location_from_image(frame1, face_cascade, eye_cascade, blob_detector, blob_threshold=blob_threshold)
+            cv.imshow('frame1', frame1)
+
+            if cv.waitKey(1) == ord('q'):
+                break
+
+        cap1.release()
+        cv.destroyAllWindows()
 
 
 
