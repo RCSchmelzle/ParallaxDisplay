@@ -3,6 +3,7 @@ import cv2 as cv
 import time
 start_time = time.time()
 
+screenSize = (1080, 1920)
 
 objectPoints = [
         [-1, -1, -1], [-1, 1, -1], [1, 1, -1], [1, -1, -1],
@@ -42,18 +43,18 @@ RT = np.array([np.array(x) for x in RT])
 P = cameraMatrix@RT
 
 imagePoints = [P @ pi for pi in objectPoints]
-imagePoints = [(int(pi[0]/pi[2]), int(pi[1]/pi[2])) for pi in imagePoints]
+imagePoints = [(int(pi[0]/pi[2]), screenSize[0]-int(pi[1]/pi[2])) for pi in imagePoints]
 print("%s seconds" % (time.time() - start_time))
 
 print(imagePoints)
 
 
-canvas = np.zeros((1080, 1920))
+canvas = np.zeros(screenSize)
 
 for ip in imagePoints:
     cv.circle(canvas, ip, 5, (255, 255,255), -1)
 
-canvas = cv.resize(canvas, (960, 540))
+canvas = cv.resize(canvas, (int(screenSize[1]/2), int(screenSize[0]/2)))
 
 cv.imshow("Canvas", canvas)
 cv.waitKey(0)
