@@ -3,7 +3,7 @@ import numpy as np
 import time
 
 cap1 = cv.VideoCapture(1, cv.CAP_DSHOW)
-cap2 = cv.VideoCapture(2, cv.CAP_DSHOW)
+cap2 = cv.VideoCapture(0, cv.CAP_DSHOW)
 
 ret1, frame1 = cap1.read()
 ret2, frame2 = cap2.read()

@@ -3,7 +3,7 @@ import math
 import numpy as np
 import os
 import glob
-
+import matplotlib.pyplot as plt
 
 
 # To Do:
@@ -350,7 +350,30 @@ def detect_pupil_location_from_image(color_image, face_cascade, eye_cascade, blo
         for coor in running_pupil_coordinates:
             cv.circle(color_image, (coor[0], coor[1]), 2, (255,255,0), 2)
 
+            
+    cv.imshow('Pupil', color_image)
     return running_pupil_coordinates
+
+
+def DLT(P1, P2, point1, point2):
+
+    A = [point1[1]*P1[2,:] - P1[1,:],
+        P1[0,:] - point1[0]*P1[2,:],
+        point2[1]*P2[2,:] - P2[1,:],
+        P2[0,:] - point2[0]*P2[2,:]
+        ]
+    A = np.array(A).reshape((4,4))
+    #print('A: ')
+    #print(A)
+
+    B = A.transpose() @ A
+    from scipy import linalg
+    U, s, Vh = linalg.svd(B, full_matrices = False)
+
+    print('Triangulated point: ')
+    print(Vh[3,0:3]/Vh[3,3])
+    return Vh[3,0:3]/Vh[3,3]
+
 
 
 def compute_triangulation_calibrated(stereo_matrix, projected_points_1, projected_points_2):
@@ -378,9 +401,12 @@ def compute_triangulation_calibrated(stereo_matrix, projected_points_1, projecte
     # print(P2)
     # print(projected_points_1)
 
-    cv.waitKey(0)
+    # p3d = DLT(P1, P2, projected_points_1[0], projected_points_2[0])
+
+
+    # cv.waitKey(0)
     for i in range(len(projected_points_1)):
-        X_l = cv.triangulatePoints(P1, P2, projected_points_1[i], projected_points_2[i])
+        X_l = DLT(P1, P2, projected_points_1[i], projected_points_2[i])
         triangulated_points.append(X_l)
 
 
